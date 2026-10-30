@@ -1,9 +1,7 @@
 """Keep one SGA Discord sticky announcement at the bottom of a channel.
 
-If SOURCE_WEBHOOK_URL is set, copy the latest rich embed sent by that webhook
-in its own dedicated Discord source channel. The webhook is the canonical
-Discohook-editable template; no duplicate text lives in GitHub secrets.
-Otherwise, retain the original STICKY_DESCRIPTION fallback for safe migration.
+Read the latest rich Discohook embed from a dedicated source webhook.
+The editable message content stays inside Discord, not this repository.
 
 Uses short-lived GitHub Actions polling, not a persistent Discord bot process.
 """
@@ -23,12 +21,6 @@ import urllib.request
 from typing import Any
 
 TARGET_CHANNEL_ID = "1518960183500476591"
-EMBED_TITLE = "\U0001f4da \ucf54\uce58 \uc6b4\uc601 \uac00\uc774\ub4dc \ubc14\ub85c\uac00\uae30"
-EMBED_COLOR = int("E53935", 16)
-EMBED_FOOTER = (
-    "\ud559\uc0dd\ub4e4\uc758 \uafc8\uacfc \uc131\uc7a5\uc744 \uc704\ud574 \ub298 \ud568\uaed8\ud574 "
-    "\uc8fc\uc2dc\ub294 \ubaa8\ub4e0 \ucf54\uce58\ub2d8\ub4e4\uaed8 \uc9c4\uc2ec\uc73c\ub85c \uac10\uc0ac\ub4dc\ub9bd\ub2c8\ub2e4."
-)
 STATE_FILE = pathlib.Path(__file__).with_name("state.json")
 API_ROOT = "https://discord.com/api/v10"
 USER_AGENT = "DiscordBot (https://github.com/cow2rite/sga-sticky-bot, 1.0)"
@@ -196,31 +188,16 @@ def run() -> str:
     bot_token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
     target_webhook_raw = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
     source_webhook_raw = os.environ.get("SOURCE_WEBHOOK_URL", "").strip()
-    fallback_description = os.environ.get("STICKY_DESCRIPTION", "").strip()
-    if not bot_token or not target_webhook_raw or not (source_webhook_raw or fallback_description):
+    if not bot_token or not target_webhook_raw or not source_webhook_raw:
         raise ValueError(
-            "Missing DISCORD_BOT_TOKEN, DISCORD_WEBHOOK_URL, or both "
-            "SOURCE_WEBHOOK_URL and the fallback STICKY_DESCRIPTION"
+            "Missing DISCORD_BOT_TOKEN, DISCORD_WEBHOOK_URL, or SOURCE_WEBHOOK_URL"
         )
     target_webhook_url = normalize_webhook(target_webhook_raw)
     webhook = discord_request("GET", target_webhook_url)
     if not isinstance(webhook, dict) or str(webhook.get("channel_id")) != TARGET_CHANNEL_ID:
         raise ValueError("Target webhook's configured channel does not match target channel")
 
-    if source_webhook_raw:
-        payload = source_payload(bot_token, source_webhook_raw)
-    else:
-        if len(fallback_description) > 4096:
-            raise ValueError("STICKY_DESCRIPTION exceeds Discord's 4096-character limit")
-        payload = {
-            "embeds": [{
-                "title": EMBED_TITLE,
-                "description": fallback_description,
-                "color": EMBED_COLOR,
-                "footer": {"text": EMBED_FOOTER},
-            }],
-            "allowed_mentions": {"parse": []},
-        }
+    payload = source_payload(bot_token, source_webhook_raw)
 
     content_hash = hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
