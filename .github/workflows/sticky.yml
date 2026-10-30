@@ -26,7 +26,6 @@ jobs:
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          STICKY_DESCRIPTION: ${{ secrets.STICKY_DESCRIPTION }}
           SOURCE_WEBHOOK_URL: ${{ secrets.SOURCE_WEBHOOK_URL }}
         run: python3 sticky.py
 
