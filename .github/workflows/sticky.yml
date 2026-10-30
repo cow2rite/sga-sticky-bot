@@ -1,0 +1,40 @@
+name: SGA sticky announcement
+
+on:
+  schedule:
+    - cron: '2/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sga-sticky-single-channel
+  cancel-in-progress: false
+
+jobs:
+  sticky:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Repost only if there is new channel activity
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          STICKY_DESCRIPTION: ${{ secrets.STICKY_DESCRIPTION }}
+        run: python3 sticky.py
+
+      - name: Persist last managed sticky message ID
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Track latest SGA sticky message [skip ci]"
+            git push
+          fi
